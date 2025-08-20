@@ -1,0 +1,288 @@
+--// ctorlib.lua
+--// Roblox UI Library styled like Bronx.lol (1:1 copy style)
+--// Author: you + ChatGPT
+--// Usage:
+--// local ui = loadstring(game:HttpGet("ctorlib.lua"))()
+--// local win = ui:CreateWindow({ Title = "Inferno Hub", SubTitle = "v1.0", Key = Enum.KeyCode.RightShift })
+--// local tab = win:AddTab("Local Player")
+--// local sec = tab:AddSection("Local Player Modifications")
+--// sec:AddToggle({ Text="Infinite Sleep", Callback=function(v) print(v) end })
+--// sec:AddSlider({ Text="WalkSpeed", Min=0, Max=200, Default=16, Callback=function(v) game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = v end })
+
+local ctorlib = {}
+ctorlib.__index = ctorlib
+
+--// Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+local LocalPlayer = Players.LocalPlayer
+
+--// Utilities
+local function make(class, props, children)
+    local inst = Instance.new(class)
+    for k, v in pairs(props or {}) do inst[k] = v end
+    for _, c in ipairs(children or {}) do c.Parent = inst end
+    return inst
+end
+
+local function round(n, m)
+    m = m or 1
+    return math.floor(n/m+0.5)*m
+end
+
+--// Theme (Bronx.lol copy)
+local Theme = {
+    Bg = Color3.fromRGB(15, 15, 17),
+    TopBar = Color3.fromRGB(25, 25, 28),
+    SideBar = Color3.fromRGB(22, 22, 25),
+    Section = Color3.fromRGB(28, 28, 32),
+    Accent = Color3.fromRGB(0, 153, 255),
+    Text = Color3.fromRGB(240, 240, 240),
+    SubText = Color3.fromRGB(160, 160, 160)
+}
+
+local FONT = Enum.Font.Gotham
+
+--// Root Gui
+local function root()
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "ctorlib"
+    gui.IgnoreGuiInset = true
+    gui.ResetOnSpawn = false
+    gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    gui.Parent = gethui and gethui() or game:GetService("CoreGui")
+    return gui
+end
+
+--// Window
+local Window = {}
+Window.__index = Window
+
+function ctorlib:CreateWindow(opts)
+    opts = opts or {}
+    local gui = root()
+
+    local main = make("Frame", {
+        Size = UDim2.new(0, 800, 0, 500),
+        Position = UDim2.new(0.5, -400, 0.5, -250),
+        BackgroundColor3 = Theme.Bg,
+        BorderSizePixel = 0,
+        Parent = gui
+    })
+
+    local uicorner = make("UICorner", { CornerRadius = UDim.new(0, 6) })
+    uicorner.Parent = main
+
+    -- Topbar
+    local top = make("Frame", {
+        Size = UDim2.new(1, 0, 0, 35),
+        BackgroundColor3 = Theme.TopBar,
+        BorderSizePixel = 0,
+        Parent = main
+    })
+    make("TextLabel", {
+        Size = UDim2.new(1, -20, 1, 0),
+        Position = UDim2.new(0, 10, 0, 0),
+        BackgroundTransparency = 1,
+        Text = opts.Title or "ctorlib",
+        Font = FONT,
+        TextColor3 = Theme.Text,
+        TextSize = 16,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Parent = top
+    })
+
+    -- Sidebar
+    local sidebar = make("Frame", {
+        Size = UDim2.new(0, 150, 1, -35),
+        Position = UDim2.new(0, 0, 0, 35),
+        BackgroundColor3 = Theme.SideBar,
+        BorderSizePixel = 0,
+        Parent = main
+    })
+
+    local tabholder = make("Frame", {
+        Size = UDim2.new(1, -150, 1, -35),
+        Position = UDim2.new(0, 150, 0, 35),
+        BackgroundTransparency = 1,
+        Parent = main
+    })
+
+    -- Tabs container
+    local tabFolder = Instance.new("Folder", tabholder)
+
+    local win = setmetatable({ Gui = gui, Main = main, Sidebar = sidebar, TabFolder = tabFolder, Tabs = {} }, Window)
+    return win
+end
+
+--// Tab
+local Tab = {}
+Tab.__index = Tab
+
+function Window:AddTab(name)
+    local button = make("TextButton", {
+        Size = UDim2.new(1, 0, 0, 30),
+        BackgroundTransparency = 1,
+        Text = name,
+        Font = FONT,
+        TextSize = 14,
+        TextColor3 = Theme.Text,
+        Parent = self.Sidebar
+    })
+
+    local page = make("ScrollingFrame", {
+        Size = UDim2.new(1, 0, 1, 0),
+        CanvasSize = UDim2.new(0, 0, 0, 0),
+        BackgroundTransparency = 1,
+        ScrollBarThickness = 4,
+        Visible = false,
+        Parent = self.TabFolder
+    })
+    make("UIListLayout", { Parent = page, Padding = UDim.new(0, 10) })
+
+    local tab = setmetatable({ Page = page, Button = button, Sections = {} }, Tab)
+    self.Tabs[name] = tab
+
+    button.MouseButton1Click:Connect(function()
+        for _, t in pairs(self.Tabs) do
+            t.Page.Visible = false
+        end
+        page.Visible = true
+    end)
+
+    return tab
+end
+
+--// Section
+local Section = {}
+Section.__index = Section
+
+function Tab:AddSection(name)
+    local section = make("Frame", {
+        Size = UDim2.new(1, -20, 0, 40),
+        BackgroundColor3 = Theme.Section,
+        BorderSizePixel = 0,
+        Parent = self.Page
+    })
+    make("UICorner", { CornerRadius = UDim.new(0, 4), Parent = section })
+
+    make("TextLabel", {
+        Size = UDim2.new(1, -10, 0, 20),
+        Position = UDim2.new(0, 5, 0, 5),
+        BackgroundTransparency = 1,
+        Text = name,
+        Font = FONT,
+        TextColor3 = Theme.SubText,
+        TextSize = 13,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Parent = section
+    })
+
+    local holder = make("Frame", {
+        Size = UDim2.new(1, -10, 1, -25),
+        Position = UDim2.new(0, 5, 0, 25),
+        BackgroundTransparency = 1,
+        Parent = section
+    })
+    make("UIListLayout", { Parent = holder, Padding = UDim.new(0, 5) })
+
+    local sec = setmetatable({ Holder = holder }, Section)
+    table.insert(self.Sections, sec)
+    return sec
+end
+
+--// Controls
+function Section:AddToggle(opts)
+    local toggle = make("TextButton", {
+        Size = UDim2.new(1, 0, 0, 25),
+        BackgroundTransparency = 1,
+        Text = "",
+        Parent = self.Holder
+    })
+    local lbl = make("TextLabel", {
+        Size = UDim2.new(1, -40, 1, 0),
+        BackgroundTransparency = 1,
+        Text = opts.Text or "Toggle",
+        Font = FONT,
+        TextSize = 13,
+        TextColor3 = Theme.Text,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Parent = toggle
+    })
+    local box = make("Frame", {
+        Size = UDim2.new(0, 20, 0, 20),
+        Position = UDim2.new(1, -25, 0.5, -10),
+        BackgroundColor3 = Theme.SideBar,
+        Parent = toggle
+    })
+    make("UICorner", { CornerRadius = UDim.new(0, 4), Parent = box })
+
+    local on = false
+    toggle.MouseButton1Click:Connect(function()
+        on = not on
+        box.BackgroundColor3 = on and Theme.Accent or Theme.SideBar
+        if opts.Callback then opts.Callback(on) end
+    end)
+end
+
+function Section:AddSlider(opts)
+    local frame = make("Frame", {
+        Size = UDim2.new(1, 0, 0, 40),
+        BackgroundTransparency = 1,
+        Parent = self.Holder
+    })
+    make("TextLabel", {
+        Size = UDim2.new(1, 0, 0, 20),
+        BackgroundTransparency = 1,
+        Text = opts.Text or "Slider",
+        Font = FONT,
+        TextSize = 13,
+        TextColor3 = Theme.Text,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Parent = frame
+    })
+
+    local bar = make("Frame", {
+        Size = UDim2.new(1, -10, 0, 6),
+        Position = UDim2.new(0, 5, 0, 25),
+        BackgroundColor3 = Theme.SideBar,
+        Parent = frame
+    })
+    make("UICorner", { CornerRadius = UDim.new(0, 3), Parent = bar })
+
+    local fill = make("Frame", {
+        Size = UDim2.new(0.5, 0, 1, 0),
+        BackgroundColor3 = Theme.Accent,
+        BorderSizePixel = 0,
+        Parent = bar
+    })
+    make("UICorner", { CornerRadius = UDim.new(0, 3), Parent = fill })
+
+    local min, max, val = opts.Min or 0, opts.Max or 100, opts.Default or 0
+    local function setValue(x)
+        val = math.clamp(round(x,1), min, max)
+        fill.Size = UDim2.new((val-min)/(max-min),0,1,0)
+        if opts.Callback then opts.Callback(val) end
+    end
+    setValue(val)
+
+    local dragging = false
+    bar.InputBegan:Connect(function(i)
+        if i.UserInputType==Enum.UserInputType.MouseButton1 then dragging=true end
+    end)
+    bar.InputEnded:Connect(function(i)
+        if i.UserInputType==Enum.UserInputType.MouseButton1 then dragging=false end
+    end)
+    UserInputService.InputChanged:Connect(function(i)
+        if dragging and i.UserInputType==Enum.UserInputType.MouseMovement then
+            local rel = (i.Position.X-bar.AbsolutePosition.X)/bar.AbsoluteSize.X
+            setValue(min+(max-min)*rel)
+        end
+    end)
+end
+
+--// Return ctorlib
+return ctorlib
